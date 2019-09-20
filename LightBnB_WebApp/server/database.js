@@ -122,13 +122,52 @@ exports.getAllReservations = getAllReservations;
  * @return {Promise<[{}]>}  A promise to the properties.
  */
 
-const getAllProperties = function (options, limit = 10) {
-  return pool.query(`
-  SELECT * FROM properties
-  LIMIT $1
-  `, [limit])
+const getAllProperties = (options, limit = 10) => {
+  
+  let queryString = `
+    SELECT properties.*, AVG(rating) AS average_rating
+    FROM properties
+    JOIN property_reviews ON properties.id = property_id
+  `;
+  let queryParams = [];
+
+  // If there's already a parameter in queryParams, we change syntax to AND to set multiple conditions
+  const checkParams = function () {
+    if (queryParams.length > 1) {
+      return ' AND';
+    } else {
+      return 'WHERE'
+    }
+  }
+
+  if (options.city) {
+    queryParams.push(`%${options.city}%`);
+    queryString += `${checkParams()} city LIKE $${queryParams.length}`;
+  }
+  if (options.minimum_price_per_night) {
+    queryParams.push(`${options.minimum_price_per_night}`);
+    queryString += `${checkParams()} cost_per_night >= $${queryParams.length}`;
+  }
+  if (options.maximum_price_per_night) {
+    queryParams.push(`${options.maximum_price_per_night}`);
+    queryString += `${checkParams()} cost_per_night <= $${queryParams.length}`;
+  }
+  if (options.rating) {
+    queryParams.push(`${options.rating}`);
+    queryString += `${checkParams()} AVG(rating) >= $${queryParams.length}`;
+  }
+
+  queryParams.push(limit);
+  queryString += `
+    GROUP BY properties.id
+    ORDER BY cost_per_night
+    LIMIT $${queryParams.length}
+  `
+
+  return pool.query(queryString, queryParams)
     .then(res => res.rows);
 }
+
 exports.getAllProperties = getAllProperties;
 
 
@@ -144,3 +183,6 @@ const addProperty = function (property) {
   return Promise.resolve(property);
 }
 exports.addProperty = addProperty;
+
+
+
