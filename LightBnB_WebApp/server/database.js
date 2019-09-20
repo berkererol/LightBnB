@@ -26,10 +26,16 @@ const getUserWithEmail = (email) => {
     SELECT * FROM users
     WHERE email = $1;
   `, [email])
-  .then(res => res.rows[0])
-  .catch(err => {
-    console.log(`Error:`, err);
-  });
+    .then(res => {
+      if (res.rows) {
+        return res.rows[0];
+      } else {
+        return null;
+      }
+    })
+    .catch(err => {
+      console.log(`Error:`, err);
+    });
 }
 
 exports.getUserWithEmail = getUserWithEmail;
@@ -44,13 +50,13 @@ const getUserWithId = (id) => {
     SELECT * FROM users
     WHERE id = $1;
   `, [id])
-  .then(res => {
-    if (res.rows) {
-      return res.rows[0];
-    } else {
-      return null;
-    }
-  });
+    .then(res => {
+      if (res.rows) {
+        return res.rows[0];
+      } else {
+        return null;
+      }
+    });
 }
 
 exports.getUserWithId = getUserWithId;
@@ -61,20 +67,20 @@ exports.getUserWithId = getUserWithId;
  * @param {{name: string, password: string, email: string}} user
  * @return {Promise<{}>} A promise to the user.
  */
-const addUser =  (userObj) => {
+const addUser = (userObj) => {
   return pool.query(`
   INSERT INTO users (name, email, password)
   VALUES ($1, $2, $3)
   RETURNING *;
   `, [userObj.name, userObj.email, userObj.password])
-  .then(res => {
-    console.log(`new user: `, res.rows[0]);
-    if (res.rows) {
-      return res.rows[0];
-    } else {
-      return null;
-    }
-  })
+    .then(res => {
+      console.log(`new user: `, res.rows[0]);
+      if (res.rows) {
+        return res.rows[0];
+      } else {
+        return null;
+      }
+    })
 }
 exports.addUser = addUser;
 
@@ -85,9 +91,26 @@ exports.addUser = addUser;
  * @param {string} guest_id The id of the user.
  * @return {Promise<[{}]>} A promise to the reservations.
  */
-const getAllReservations = function(guest_id, limit = 10) {
-  return getAllProperties(null, 2);
+const getAllReservations = function (guest_id, limit = 10) {
+  return pool.query(`
+    SELECT reservations.*, properties.*, AVG(rating) AS average_rating
+    FROM reservations
+    JOIN properties ON properties.id = reservations.property_id
+    JOIN property_reviews ON property_reviews.property_id = reservations.property_id
+    WHERE reservations.guest_id = $1
+    GROUP BY reservations.id, properties.id
+    ORDER BY reservations.start_date 
+    LIMIT $2;
+  `, [guest_id, limit])
+    .then(res => {
+      if (res.rows) {
+        return res.rows;
+      } else {
+        return null;
+      }
+    })
 }
+
 exports.getAllReservations = getAllReservations;
 
 /// Properties
@@ -99,12 +122,12 @@ exports.getAllReservations = getAllReservations;
  * @return {Promise<[{}]>}  A promise to the properties.
  */
 
-const getAllProperties = function(options, limit = 10) {
+const getAllProperties = function (options, limit = 10) {
   return pool.query(`
   SELECT * FROM properties
   LIMIT $1
   `, [limit])
-  .then(res => res.rows);
+    .then(res => res.rows);
 }
 exports.getAllProperties = getAllProperties;
 
@@ -114,7 +137,7 @@ exports.getAllProperties = getAllProperties;
  * @param {{}} property An object containing all of the property details.
  * @return {Promise<{}>} A promise to the property.
  */
-const addProperty = function(property) {
+const addProperty = function (property) {
   const propertyId = Object.keys(properties).length + 1;
   property.id = propertyId;
   properties[propertyId] = property;
